@@ -41,6 +41,9 @@ import com.example.lab_week_09.ui.theme.OnBackgroundTitleText
 import com.example.lab_week_09.ui.theme.PrimaryTextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import com.squareup.moshi.Types
 
 
 class MainActivity : ComponentActivity() {
@@ -123,15 +126,25 @@ fun Home(navigateFromHomeToResult: (String) -> Unit) {
 
     var inputName by remember { mutableStateOf("") }
 
+    // Moshi adapter
+    val moshi = remember { Moshi.Builder().add(KotlinJsonAdapterFactory()).build() }
+    val adapter = remember { moshi.adapter<List<Student>>(List::class.java) }
+
     HomeContent(
-        listData,
-        inputName,
-        { input -> inputName = input },
-        {
-            listData.add(Student(inputName))
-            inputName = ""
+        listData = listData,
+        inputField = inputName,
+        onInputValueChange = { inputName = it },
+        onButtonClick = {
+            if (inputName.isNotBlank()) {
+                listData.add(Student(inputName))
+                inputName = ""
+            }
         },
-        { navigateFromHomeToResult(listData.toList().toString()) }
+        navigateFromHomeToResult = {
+            // Convert list to JSON string
+            val json = adapter.toJson(listData.toList())
+            navigateFromHomeToResult(json)
+        }
     )
 }
 
@@ -187,16 +200,27 @@ fun Home(navigateFromHomeToResult: (String) -> Unit) {
     }
 
 @Composable
-fun ResultContent(listData: String) {
-    Column(
+fun ResultContent(listDataJson: String) {
+    val moshi = remember { Moshi.Builder().add(KotlinJsonAdapterFactory()).build() }
+
+    // Define the parameterized type List<Student>
+    val type = remember { Types.newParameterizedType(List::class.java, Student::class.java) }
+    val adapter = remember { moshi.adapter<List<Student>>(type) }
+
+    val students = adapter.fromJson(listDataJson) ?: emptyList()
+
+    LazyColumn(
         modifier = Modifier
-            .padding(vertical = 4.dp)
+            .padding(16.dp)
             .fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        OnBackgroundItemText(text = listData)
+        items(students) { student ->
+            OnBackgroundItemText(text = student.name)
+        }
     }
 }
+
 data class Student(
     var name: String
 )
